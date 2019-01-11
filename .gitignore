@@ -1,0 +1,5 @@
+node_modules
+node_modules/*
+case.json
+*.bak
+package-lock.json

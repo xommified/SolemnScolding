@@ -1,22 +1,19 @@
 var Discord = require("discord.js");
 var JSONFile = require("jsonfile");
 var schedule = require("node-schedule");
+var util = require('util');
 
 var bot = new Discord.Client();
 var config = require("./config.json")
 
 var _ = require('lodash');
 
-function is_image(url) {
 
-	var img = new Image();
-	img.onerror = function() { return false; }
-	img.onload = function() { return true; }
-	img.src = url;
-}
+/*
+	Notifications for mods
 
 function nightly () {
-	var embed = new Discord.RichEmbed()
+	var user_embed = new Discord.RichEmbed()
 	JSONFile.readFile(config.casefile, function(err, caseData) {			
 		
 		var opens = caseData.outstanding.toString();
@@ -25,41 +22,64 @@ function nightly () {
 		}
 		
 		console.log("Notifying server owner of open cases: " + opens)
-		embed.setAuthor("Open Cases:");
-		embed.setDescription(opens)
+		user_embed.setAuthor("Open Cases:");
+		user_embed.setDescription(opens)
 		
-		bot.channels.get(config.inbox).sendEmbed(embed,config.pingee,{ disableEveryone: true })
+		bot.channels.get(config.inbox).send(config.pingee,{embed: user_embed})
 	});
 }
 
-//Notifies server owner (or whoever is desired) each night of the number of open cases
 var nightly_notif = schedule.scheduleJob("0 1 * * *", nightly);
+*/
 
 function weekly () {
-	var embed = new Discord.RichEmbed()
+	var user_embed = new Discord.RichEmbed()
 
 	console.log("Modmeeting")
-	embed.setAuthor("Weekly Mod Meeting " + (new Date).toISOString().replace("T", " ").substr(0, 19));
-	embed.setDescription("Agenda: First meeting, let's figure things out.")
+	user_embed.setAuthor("Weekly Mod Meeting " + (new Date).toISOString().replace("T", " ").substr(0, 19));
 	
-	bot.channels.get(config.meetingroom).sendEmbed(embed,config.mods,{ disableEveryone: true })
+	var agenda = []
+	
+	for (var i = 1; i < config.agenda.length+1; i++) {
+		agenda.push(i + ": " + config.agenda[i-1])
+	}
+	
+	if (agenda.length == 0) {
+		user_embed.setAuthor("No Agenda Set")		
+	} else {	
+		user_embed.setDescription(agenda.join("\n"))
+	}
+	
+	bot.channels.get(config.meetingroom).send(""+config.mods,{embed: user_embed})
 }
 
-//Weekly meetings
-var weekly_meeting = schedule.scheduleJob("0 21 * * 0", weekly);
+var weekly_meeting = schedule.scheduleJob("0 23 * * 0", weekly);
+var weekly_meeting2 = schedule.scheduleJob("0 11 * * 0", weekly);
 
 function write_config () {
-	JSONFile.writeFile("config.json", body, function (err) {
+	JSONFile.writeFile("config.json", config, function (err) {
 			if (err) { console.error("Error: " + err) }
 	})
 }
 
+/*
+	Bot startup
+*/
 bot.on("ready", () => {
+	for (let [id, g] of bot.guilds) {
+		g.fetchMembers()
+	}
 	console.log("Ready and listening.");
-	bot.user.setGame("PM for anon modmail")
+	bot.user.setPresence({ game: { name: "PM for anon modmail", type: 1, url: "https://github.com/xommified/SolemnScolding"} });
 });
 
+
+/*
+	Assign permissions for voice channels
+*/
 bot.on("voiceStateUpdate", (oldMember, newMember) => {
+	
+	console.log("something")
 	
 	if (oldMember.voiceChannelID != newMember.voiceChannelID) {
 
@@ -75,16 +95,23 @@ bot.on("voiceStateUpdate", (oldMember, newMember) => {
 	}
 });
 
+/*
+	Message handling
+*/	
 bot.on("message", message => {
 
 	var replyregex = new RegExp("^"+config.prefix+"\\d+c*:")
 	var inbox = bot.channels.get(config.inbox)
 	
-	if (message.author.bot || message.author in config.blacklist) { 
-		return;
+	//Ignore messages from bots or blacklisted users
+	if (message.author.bot || config.blacklist.includes(message.author.id)) { 
+		if (message.author.id != "387620210145886209") {
+			return;
+		}
 	}
 	
-	if (message.content.toLowerCase().startsWith(config.prefix+"eval") && message.author.id == "99589494897901568") {
+	//Eval command for debugging with raw Javascript. Only give access to those you trust with access to your system.
+	if (message.content.toLowerCase().startsWith(config.prefix+"eval") && config.eval_enabled.includes(message.author.id)) {
 			
 		try {
 			const code = message.content.substr(message.content.indexOf(" "));
@@ -103,13 +130,13 @@ bot.on("message", message => {
 		
 	}
 	
+
 	if (message.channel instanceof Discord.DMChannel || message.channel instanceof Discord.GroupDMChannel) {
 		
-		//Message from user
-		
+		// Messages coming in from a DM channel are from users
+
+		// If the message has no prefix, treat it as a new conversation
 		if (!message.content.startsWith(config.prefix)) {
-			
-			//New conversation
 			
 			console.log("Message from user: " + message.author.username + " (" + message.author + "): " + message.content)
 			
@@ -117,6 +144,7 @@ bot.on("message", message => {
 				
 				//Retreive the case number, save the message, increment the case number, and add it to the list of outstanding cases
 				casenum = caseData.nextnum
+				delete message.embeds
 				caseData.cases[casenum] = message
 				caseData.nextnum = casenum + 1			
 				caseData.outstanding.push(casenum)
@@ -144,12 +172,12 @@ bot.on("message", message => {
 				})
 			});
 		
-		} else {
-			
+		} else { 
+
+			//If the Message has a prefix, treat it as a reply
 			if (message.content.match(replyregex)) {
 	
 				//Response to case
-				
 				console.log("Response from user: " + message.author.username + " (" + message.author + "): " + message.content)
 				
 				JSONFile.readFile(config.casefile, function(err, caseData) {
@@ -193,6 +221,7 @@ bot.on("message", message => {
 						message.reply("You cannot respond to a case number that does not belong to you. Please double check the number and try again.")
 					}
 				});
+
 			} else {
 				message.reply("Check your syntax and try again.")
 			}
@@ -200,7 +229,7 @@ bot.on("message", message => {
 	
 	} else if ((message.channel == bot.channels.get(config.inbox)) && message.content.startsWith(config.prefix)) {
 		
-		//Message from a moderator
+		//If the message came from the anon_inbox, it's from a moderator.
 		
 		if (message.content.startsWith(config.prefix+"ping")) {
 		
@@ -225,6 +254,7 @@ bot.on("message", message => {
 					mod_embed.setDescription(opens)
 				}
 				inbox.send("",{embed: mod_embed, disableEveryone: true})
+				
 			});
 			
 		} else if (message.content.startsWith(config.prefix+"blocked")) {
@@ -265,6 +295,8 @@ bot.on("message", message => {
 				mod_embed.setAuthor("User Blocked")		
 				mod_embed.setDescription("<@"+tokens[1]+">")
 				
+				write_config()
+				
 				inbox.send("",{embed: mod_embed, disableEveryone: true})
 			}
 			
@@ -288,6 +320,7 @@ bot.on("message", message => {
 					config.blacklist.splice(toRemove, 1)
 					mod_embed.setAuthor("Unblocked User:")		
 					mod_embed.setDescription("<@"+tokens[1]+">")
+					write_config()
 				}
 				inbox.send("",{embed: mod_embed, disableEveryone: true})
 			}
@@ -380,6 +413,7 @@ bot.on("message", message => {
 					inbox.send("",{embed: mod_embed, disableEveryone: true})
 				});
 			}
+
 		} else if (message.content.startsWith(config.prefix+"help")) {
 			
 			var mod_embed = new Discord.RichEmbed()
@@ -451,6 +485,7 @@ bot.on("message", message => {
 					})
 				}
 			});
+
 		} else {
 			
 			if (((/^\![^\?]+$/).test(message.content))) {
@@ -459,8 +494,84 @@ bot.on("message", message => {
 			}
 			
 		}
+		
+	} else if ((message.channel == bot.channels.get(config.modchat) || message.channel == bot.channels.get(config.meetingroom)) && message.content.startsWith(config.prefix)) {
+		
+		if (message.content.startsWith(config.prefix+"listagenda")) {
+			
+			//Moderator command: show agenda for mod meetings
+
+			console.log("Listing agenda")
+			
+			var mod_embed = new Discord.RichEmbed()	
+			var agenda = []
+			
+			for (var i = 1; i <= config.agenda.length; i++) {
+				agenda.push(i + ": " + config.agenda[i-1])
+			}
+			
+			if (agenda.length == 0) {
+				mod_embed.setAuthor("No Agenda Set")		
+			} else {
+				mod_embed.setAuthor("Agenda Items:")		
+				mod_embed.setDescription(agenda.join("\n"))
+			}
+			message.channel.send("",{embed: mod_embed, disableEveryone: true})
+			
+		} else if (message.content.startsWith(config.prefix+"addagenda")) {
+			
+			//Moderator command: add agenda item
+			
+			item = message.content.slice(message.content.indexOf(" ")+1)
+
+			if (item.length < 3) {
+				message.reply("Usage: `"+config.prefix+"addagenda atleast3chars`")
+			} else {
+			
+				console.log("adding agenda")
+				
+				var mod_embed = new Discord.RichEmbed()	
+				
+				num = config.agenda.push(item)
+				
+				mod_embed.setAuthor("Agenda Item added")		
+				mod_embed.setDescription(num + ": " + item)
+				
+				write_config()
+				
+				message.channel.send("",{embed: mod_embed, disableEveryone: true})
+			}
+			
+		} else if (message.content.startsWith(config.prefix+"delagenda")) {
+			
+			//Moderator command: Unblock user
+			
+			tokens = message.content.split(" ")
+
+			if (tokens.length != 2 || isNaN(parseInt(tokens[1]))) {
+				message.reply("Usage: `"+config.prefix+"delagenda 1`")
+			} else {
+				var toRemove = tokens[1]-1
+				
+				console.log("deleting agenda item " + tokens[1])
+				
+				var mod_embed = new Discord.RichEmbed()	
+				if (toRemove <= 0 || toRemove >= config.agenda.length) {
+					mod_embed.setAuthor("No such agenda item")		
+				} else {
+					removed = config.agenda.splice(toRemove, 1)
+					mod_embed.setAuthor("Deleted agenda item:")		
+					mod_embed.setDescription(tokens[1]+": "+removed[0])
+					write_config()
+				}
+				message.channel.send("",{embed: mod_embed, disableEveryone: true})
+			}
+			
+		}
 	} else if ((message.guild.id == config.modguild) && (message.content.startsWith(config.redditprefix))) {
 		
+		// Commands for subreddit mod discord server
+
 		if (message.content.startsWith(config.redditprefix+"ping")) {
 			console.log("Ping from mod server")
 			message.reply("pong!")

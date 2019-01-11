@@ -1,0 +1,19 @@
+{
+  "inbox": "",
+  "meetingroom": "",
+  "modchat": "",
+  "pingee": "<@>",
+  "mods": "<@&>",
+  "eval_enabled": "",
+  "casefile": "case.json",
+  "channelmap": {
+    "": "",
+  },
+  "prefix": "<<",
+  "modguild": "",
+  "redditprefix": "?",
+  "token": "",
+  "redditinf": "",
+  "blacklist": [],
+  "agenda": []
+}
