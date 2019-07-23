@@ -1,6 +1,6 @@
 {
   "name": "solemnscolding",
-  "version": "0.1",
+  "version": "0.1.0",
   "description": "Discord bot that provides a means for pseudo-anonymous communication with moderators.",
   "main": "Bot.js",
   "dependencies": {
@@ -8,7 +8,8 @@
     "discord.js": "^11.0.0",
     "jsonfile": "^2.4.0",
     "node-schedule": "^1.2.1",
-    "sleep": "^5.1.1"
+    "sleep": "^5.1.1",
+    "lodash": "^4.14.0"
   },
   "repository": {
     "type": "git",
