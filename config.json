@@ -14,6 +14,13 @@
   "redditprefix": "?",
   "token": "",
   "redditinf": "",
+  "redditregexes": "",
+  "redditshadowbans": "",
+  "redditremovalnumber": 3,
+  "databaseName": "",
+  "dbUser":"",
+  "dbPass":"",
+  "modAlias": {},
   "blacklist": [],
   "agenda": []
 }
